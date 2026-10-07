@@ -1,0 +1,8 @@
+{
+  "name": "GreatReads",
+  "description": "An elegant, Apple Books-inspired reading companion, bookstore, vocabulary garden, and device library for iPad, iPhone, and web.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
