@@ -2,7 +2,7 @@ import type { Book } from '../../types';
 import { mapPool } from '../books/http';
 import { persistentCache } from '../books/cache';
 import { resolveBook } from '../books/resolve';
-import { loadNytList } from '../books/sources/nyt';
+import { NYT_FAILURE_TEXT, lastNytFailure, loadNytList } from '../books/sources/nyt';
 import { enrichPool, gatherPool, rankPool } from './collate';
 import { NYT_EXTRA_SHELVES, NYT_SHELVES, type NytShelf } from './lists';
 import { combineWithNyt, nytEntryToBook, nytLabel } from './nytBooks';
@@ -96,10 +96,12 @@ export function bestsellerSource(shelf: NytShelf): ShelfSource {
     info: () => {
       const s = saved.get(shelf.id);
       const m = s?.mode ?? mode;
+      const failed = lastNytFailure(shelf.list);
+      const why = failed && (!s || s.mode !== 'nyt') ? ` · not loading right now: ${NYT_FAILURE_TEXT[failed]}` : '';
       return {
         updatedAt: s?.at,
         schedule: 'NYT publishes weekly · checked every 6 hours when opened',
-        source: m === 'collated' ? 'GreatReads fallback (the NYT list could not be loaded), not an official list' : 'The New York Times Books API (official)',
+        source: (m === 'collated' ? 'GreatReads fallback (the NYT list could not be loaded), not an official list' : 'The New York Times Books API (official)') + why,
         kind: m === 'collated' ? 'generated' : 'official',
       };
     },

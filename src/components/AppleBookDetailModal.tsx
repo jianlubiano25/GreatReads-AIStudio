@@ -3,7 +3,7 @@ import { useModalA11y } from '../hooks/useModalA11y';
 import { Book } from '../types';
 import { BOOK_AWARDS, DIFFICULTY_LABELS, SHELF_LABELS } from '../data/defaultBooks';
 import { getCoverUrl, enrichBookDetails, fetchBookMeta } from '../services/books';
-import { CoverFace, stars, compactCount, awardsFor } from './BookMeta';
+import { CoverFace, stars, compactCount, honorsListFor } from './BookMeta';
 import { X, BookOpen, Smartphone, Star, Award, ChevronDown, Check, Plus, Bookmark } from 'lucide-react';
 
 interface AppleBookDetailModalProps {
@@ -93,7 +93,7 @@ export const AppleBookDetailModal: React.FC<AppleBookDetailModalProps> = ({
     return () => { live = false; };
   }, [initialBook.id]);
 
-  const awards = awardsFor(book);
+  const awards = honorsListFor(book);
   const coverUrl = getCoverUrl(book.coverId, 'L', book.coverUrl);
   const displayPages = propTotalPages || book.pageCount || 0;
   const shelfInfo = SHELF_LABELS[book.shelf] || { label: book.genre || 'Book', emoji: '📖', color: book.spineColor || '#2e5934' };
@@ -334,7 +334,7 @@ export const AppleBookDetailModal: React.FC<AppleBookDetailModalProps> = ({
                   key={idx}
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#e8efe7] dark:bg-[#243422] text-[#2e5934] dark:text-[#86b880] border border-[#2e5934]/20"
                 >
-                  <span>{aw.type === 'w' ? '🏆' : '🎖️'}</span>
+                  <span>{aw.type === 'w' ? '🏆' : aw.type === 'c' ? '📖' : '🎖️'}</span>
                   <span>{aw.label}</span>
                 </span>
               ))}

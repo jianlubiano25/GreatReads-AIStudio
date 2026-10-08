@@ -47,7 +47,7 @@ export function olDocToHit(doc: OlDoc, idx = 0, genreHint = ''): Hit {
 /** Raw search. Never throws; returns [] on any failure. */
 export async function searchOpenLibrary(params: Record<string, string>, limit: number, opts: CallOpts = {}): Promise<Hit[]> {
   const q = new URLSearchParams({ limit: String(limit), fields: FIELDS, ...params });
-  const data = await getJson(`${OL}/search.json?${q}`, { signal: opts.signal });
+  const data = await getJson(`${OL}/search.json?${q}`, { signal: opts.signal, retries: opts.retries });
   return ((data?.docs || []) as OlDoc[]).filter(d => d?.title).map((d, i) => olDocToHit(d, i));
 }
 

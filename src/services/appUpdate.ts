@@ -7,6 +7,7 @@
  * bytes (a redeploy of the same code, a changed asset list) is activated silently and never bothers you.
  */
 import { useSyncExternalStore } from 'react';
+import { parseVersion, shouldPrompt } from './updateRule';
 
 declare const __APP_BUILD__: string;
 export const APP_BUILD: string = typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev';
@@ -37,6 +38,8 @@ let applying = false;
 let dismissedBuild = (() => { try { return sessionStorage.getItem('rl-dismissed-build') || ''; } catch { return ''; } })();
 let reloading = false;
 let lastCheck = 0;
+/** The newest build the site says it has (from version.json), whether or not a service worker has downloaded it yet. */
+let siteBuild: string | null = null;
 const CHECK_EVERY = 10 * 60 * 1000;
 
 /** Ask a service worker which build it belongs to. Resolves null if it does not answer. */
@@ -82,17 +85,33 @@ function waitUntilInstalled(worker: ServiceWorker | null, ms = 10000): Promise<v
   });
 }
 
+/** The build id the site is serving right now (version.json, never cached), or null when it cannot be read. */
+async function fetchSiteBuild(): Promise<string | null> {
+  try {
+    const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+    return res.ok ? parseVersion(await res.json()) : null;
+  } catch {
+    return null; // offline, or a dev server without the file
+  }
+}
+
 /** Ask the server whether a new version exists. `manual` = the user tapped "Check for updates". */
 export async function checkForUpdate(manual = false): Promise<void> {
-  if (!reg) return;
   const now = Date.now();
   if (!manual && now - lastCheck < CHECK_EVERY) return;
+  if (!reg && !import.meta.env.PROD) return;
   lastCheck = now;
   if (manual) set({ checking: true, upToDate: false });
   try {
-    await reg.update();
-    await waitUntilInstalled(reg.installing);
-    await inspectWaiting(reg, manual);
+    // 1) the site itself says which build it is serving: works with or without a service worker
+    siteBuild = await fetchSiteBuild();
+    if (shouldPrompt({ appBuild: APP_BUILD, remoteBuild: siteBuild, dismissed: dismissedBuild, manual })) set({ available: true, upToDate: false });
+    // 2) a service worker that has already downloaded a different build
+    if (reg) {
+      await reg.update();
+      await waitUntilInstalled(reg.installing);
+      await inspectWaiting(reg, manual);
+    }
     if (manual) set({ upToDate: !snapshot.available });
   } catch {
     lastCheck = 0;
@@ -112,6 +131,7 @@ export function registerServiceWorker() {
     }
     const r = reg;
     void inspectWaiting(r); // an update that arrived while the app was closed
+    setTimeout(() => void checkForUpdate(false), 4000); // and ask the site once the app has settled
 
     r.addEventListener('updatefound', () => {
       const installing = r.installing;
@@ -144,12 +164,18 @@ export function applyUpdate() {
     waiting.postMessage({ type: 'SKIP_WAITING' });
     setTimeout(() => { if (!reloading) { reloading = true; window.location.reload(); } }, 3000); // safety net if the browser never reports the switch
   } else {
-    window.location.reload();
+    // Nothing downloaded yet (the site said there is a newer build, e.g. after a hard refresh): let the worker look once, then reload
+    const go = () => { if (!reloading) { reloading = true; window.location.reload(); } };
+    void Promise.race([reg?.update() ?? Promise.resolve(), new Promise(r => setTimeout(r, 2500))]).catch(() => {}).then(go);
   }
 }
 
 /** "Not now": hide the banner until a different build is released. */
 export function dismissUpdate() {
+  if (siteBuild) {
+    dismissedBuild = siteBuild;
+    try { sessionStorage.setItem('rl-dismissed-build', siteBuild); } catch {}
+  }
   const w = reg?.waiting;
   if (w) {
     void askBuild(w).then(b => {

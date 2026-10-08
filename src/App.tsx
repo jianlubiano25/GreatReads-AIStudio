@@ -449,6 +449,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            {tab === 'store' && (
+              <button
+                onClick={() => setCustomizing(c => !c)}
+                className={`w-10 h-10 aspect-square rounded-full border bg-[#fbf7ee] dark:bg-[#231d17] text-[#2e5934] dark:text-[#86b880] flex items-center justify-center shrink-0 shadow-xs active:scale-95 transition-all hover:border-[#2e5934] dark:hover:border-[#86b880] ${customizing ? 'border-[#2e5934] dark:border-[#86b880] ring-2 ring-[#2e5934]/30' : 'border-[#e3d7c3] dark:border-[#382f25]'}`}
+                title="Customize Store: reorder, hide and refresh shelves"
+                aria-label="Customize Store"
+                aria-pressed={customizing}
+              >
+                <SlidersHorizontal className="w-4 h-4 text-[#2e5934] dark:text-[#86b880]" />
+              </button>
+            )}
             <button
               onClick={() => setShowShareModal(true)}
               className="w-10 h-10 aspect-square rounded-full border border-[#e3d7c3] dark:border-[#382f25] bg-[#fbf7ee] dark:bg-[#231d17] text-[#2e5934] dark:text-[#86b880] flex items-center justify-center shrink-0 shadow-xs active:scale-95 transition-all hover:border-[#2e5934] dark:hover:border-[#86b880]"
@@ -489,7 +500,7 @@ export default function App() {
         {update.available && (
           <aside
             aria-label="App update available"
-            className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[calc(100vw-24px)] px-4 py-3 rounded-2xl bg-[#201a15] dark:bg-[#2e261f] text-[#f0e6d6] shadow-2xl flex items-center gap-3 border border-[#382f25]"
+            className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-24px)] px-4 py-3 rounded-2xl bg-[#201a15] dark:bg-[#2e261f] text-[#f0e6d6] shadow-2xl flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border border-[#382f25]"
           >
             <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
             <span className="text-xs font-medium">New version ready</span>
@@ -499,7 +510,7 @@ export default function App() {
             >
               Update now
             </button>
-            <button onClick={dismissUpdate} className="text-xs text-white/60 hover:text-white ml-1" aria-label="Not now">
+            <button onClick={dismissUpdate} className="px-2 py-1 text-xs text-white/70 hover:text-white shrink-0" aria-label="Not now">
               Later
             </button>
           </aside>

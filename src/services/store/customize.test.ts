@@ -161,7 +161,8 @@ test('dynamic shelf info: says how it refreshes and what kind of source it is', 
   assert.equal(everyLabel(24 * 3600_000), 'daily');
   assert.equal(everyLabel(3 * 24 * 3600_000), 'every 3 days');
   assert.equal(everyLabel(30 * 24 * 3600_000), 'monthly');
-  assert.equal(DYNAMIC_SPECS.oprah.kind, 'fallback');
+  assert.equal(DYNAMIC_SPECS.womens.kind, 'fallback');
+  assert.equal(DYNAMIC_SPECS.oprah.kind, 'official');
   assert.equal(DYNAMIC_SPECS.romance.kind, 'generated');
 });
 
@@ -339,4 +340,11 @@ test('refreshing shelves (manual, including a hidden one and a failing one) neve
   } finally {
     delete (globalThis as any).localStorage;
   }
+});
+
+test('NYT list names are the API\'s encoded names (from list_name), not the display names', () => {
+  const lists = [...NYT_SHELVES, ...NYT_EXTRA_SHELVES].map(s => s.list);
+  assert.ok(lists.includes('trade-fiction-paperback'));
+  assert.ok(!lists.includes('paperback-trade-fiction'), 'that is the display name; the API would not know it');
+  for (const l of lists) assert.match(l, /^[a-z0-9]+(-[a-z0-9]+)*$/, l);
 });

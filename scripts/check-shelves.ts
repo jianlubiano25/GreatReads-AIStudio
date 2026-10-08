@@ -9,6 +9,10 @@
  */
 import { CURATED_SHELVES } from '../src/data/storeCatalog';
 import { DYNAMIC_SPECS } from '../src/services/store/dynamic';
+import { cleanAuthorName } from '../src/services/store/wikiLists';
+
+// An author that is not just a name (digits, brackets, symbols, a leftover note) cannot be matched to a cover.
+const odd = (a: string) => /[\d()\[\]{}<>|†‡*#^@]/.test(a) || cleanAuthorName(a) !== a;
 
 // Wikipedia asks API clients to say who they are
 const realFetch = globalThis.fetch;
@@ -24,7 +28,12 @@ for (const shelf of CURATED_SHELVES) {
   const ok = n >= spec.minSeeds;
   if (!ok) bad++;
   console.log(`${ok ? 'OK' : '!!'} ${shelf.id.padEnd(12)} ${String(n).padStart(2)} books  ${((Date.now() - t0) / 1000).toFixed(1)}s  every ${Math.round(spec.refreshMs / 86400000)}d  ${spec.source}`);
-  for (const [t, a, label] of (fresh?.seeds ?? []).slice(0, 4)) console.log(`       ${t} — ${a}${label ? `  [${label}]` : ''}`);
+  const seeds = fresh?.seeds ?? [];
+  const newest = seeds[0]?.[2] ? `  newest on the source: ${seeds[0][2]}` : '';
+  if (newest) console.log(`      ${newest.trim()}`);
+  for (const [t, a, label] of seeds.slice(0, 4)) console.log(`       ${t} — ${a}${label ? `  [${label}]` : ''}`);
+  const dirty = seeds.filter(([, a]) => odd(a));
+  if (dirty.length) { bad++; console.log(`       !! ${dirty.length} author name(s) still look wrong: ${dirty.slice(0, 5).map(d => JSON.stringify(d[1])).join(', ')}`); }
   if (!ok) console.log('       (too few books: the shelf keeps its saved / hand-picked list. Check the source or its column rules in src/services/store/dynamic.ts)');
 }
 process.exit(bad ? 1 : 0);

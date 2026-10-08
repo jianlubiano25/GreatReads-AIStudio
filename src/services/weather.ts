@@ -28,6 +28,56 @@ const SUN_KEY = 'greatreads_sun_v1';
 const GEO_FAIL_KEY = 'greatreads_geo_failed';
 const GEO_OPT_KEY = 'greatreads_weather_location'; // '1' only if you switched on "Match weather to my location"
 const GEO_RETRY_MS = 60 * 60 * 1000; // after a refusal/timeout, don't ask the device for its location again for an hour
+const POS_KEY = 'greatreads_geo_pos_v1';
+const POS_FRESH_MS = 6 * 60 * 60 * 1000; // a position this recent is used as it is: the device is not asked again
+const POS_KEEP_MS = 30 * 24 * 60 * 60 * 1000; // an older one is still used (instead of asking again) unless the browser has the permission saved
+
+/*
+ * Why the app used to ask for location again and again: the position, the weather and "the device said no" were all kept in
+ * sessionStorage, which phones and installed apps empty every time the app is opened, so each launch looked like a first visit.
+ * Now they live in localStorage, and the device is only asked when there is no usable position and asking can work:
+ *   - permission already granted     -> ask freely (the browser answers silently, no question is shown)
+ *   - permission denied              -> never ask (a saved position, if any, is still used)
+ *   - permission not remembered      -> ask only when no position has ever been saved (the first time), not on every launch
+ * Turning "Match weather to my location" off and on again forgets the saved position and asks once more (use it after travelling).
+ */
+export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
+export interface SavedPos { lat: number; lon: number; at: number }
+
+export function locationPlan(o: { permission: GeoPermission; saved: SavedPos | null; failedAt: number; now: number }): 'use-saved' | 'ask-device' | 'none' {
+  const { permission, saved, failedAt, now } = o;
+  const age = saved ? now - saved.at : Infinity;
+  const keep = saved && age < POS_KEEP_MS ? 'use-saved' : 'none';
+  if (permission === 'denied') return keep;
+  if (now - failedAt < GEO_RETRY_MS) return keep; // asked a moment ago and it did not work
+  if (saved && age < POS_FRESH_MS) return 'use-saved';
+  if (permission === 'granted') return 'ask-device'; // silent
+  if (saved && age < POS_KEEP_MS) return 'use-saved'; // not remembered by the browser: do not make the reader answer again
+  return 'ask-device';
+}
+
+const readStored = (key: string): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
+const writeStored = (key: string, value: string | null) => { try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {} };
+
+function readSavedPos(): SavedPos | null {
+  try {
+    const v = JSON.parse(readStored(POS_KEY) || 'null');
+    return v && Number.isFinite(v.lat) && Number.isFinite(v.lon) && Number.isFinite(v.at) ? { lat: v.lat, lon: v.lon, at: v.at } : null;
+  } catch {
+    return null;
+  }
+}
+/** Rounded to about a kilometre: enough for the weather, nothing more precise is ever kept. */
+const savePos = (lat: number, lon: number) => writeStored(POS_KEY, JSON.stringify({ lat: Number(lat.toFixed(2)), lon: Number(lon.toFixed(2)), at: Date.now() }));
+
+async function geoPermission(): Promise<GeoPermission> {
+  try {
+    const p = await (navigator as any).permissions?.query({ name: 'geolocation' });
+    return p?.state === 'granted' || p?.state === 'prompt' || p?.state === 'denied' ? p.state : 'unknown';
+  } catch {
+    return 'unknown'; // older Safari has no Permissions API for geolocation
+  }
+}
 
 // With "Match weather to my location" on, a window tap is only a temporary peek: opening / refreshing the app goes
 // back to the real local weather. (With it off, your chosen ambiance is remembered, as before.)
@@ -136,7 +186,7 @@ export async function fetchLocalWeather(): Promise<WeatherData | null> {
 
   // Check cache (10 minutes)
   try {
-    const cached = sessionStorage.getItem(CACHE_KEY);
+    const cached = readStored(CACHE_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Date.now() - parsed.timestamp < 10 * 60 * 1000) {
@@ -145,24 +195,28 @@ export async function fetchLocalWeather(): Promise<WeatherData | null> {
     }
   } catch {}
 
-  // Try Geolocation with Open-Meteo (not again for a while if the device already said no, so iOS doesn't re-prompt)
-  // Location is OFF unless you turn it on in Settings, so the app never asks for it by itself.
-  let geoBlocked = !isLocationWeatherEnabled();
-  try {
-    geoBlocked = geoBlocked || Date.now() - Number(sessionStorage.getItem(GEO_FAIL_KEY) || 0) < GEO_RETRY_MS;
-  } catch {}
-  if ('geolocation' in navigator && !geoBlocked) {
-    // 1) ask the device where it is. Only a refusal/timeout here blocks asking again for an hour.
-    let pos: GeolocationPosition | null = null;
-    try {
-      pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 4000,
-          maximumAge: 15 * 60 * 1000,
+  // Location is OFF unless you turn it on in Settings, so the app never asks for it by itself (see the note on locationPlan).
+  if ('geolocation' in navigator && isLocationWeatherEnabled()) {
+    const plan = locationPlan({ permission: await geoPermission(), saved: readSavedPos(), failedAt: Number(readStored(GEO_FAIL_KEY) || 0), now: Date.now() });
+    let pos: { coords: { latitude: number; longitude: number } } | null = null;
+    if (plan === 'use-saved') {
+      const sp = readSavedPos();
+      if (sp) pos = { coords: { latitude: sp.lat, longitude: sp.lon } };
+    } else if (plan === 'ask-device') {
+      // 1) ask the device where it is. Only a refusal/timeout here blocks asking again for an hour.
+      try {
+        const got = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 8000,
+            maximumAge: 15 * 60 * 1000,
+          });
         });
-      });
-    } catch {
-      try { sessionStorage.setItem(GEO_FAIL_KEY, String(Date.now())); } catch {}
+        pos = got;
+        savePos(got.coords.latitude, got.coords.longitude);
+        writeStored(GEO_FAIL_KEY, null);
+      } catch {
+        writeStored(GEO_FAIL_KEY, String(Date.now()));
+      }
     }
 
     // 2) ask the weather service. A network hiccup here must NOT count as "location refused", and it must not hang.
@@ -201,9 +255,7 @@ export async function fetchLocalWeather(): Promise<WeatherData | null> {
             sun,
           };
 
-          try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
-          } catch {}
+          writeStored(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
 
           return data;
         }
@@ -234,7 +286,7 @@ export function setWeatherOverride(override: 'auto' | WeatherCondition) {
       localStorage.setItem(OVERRIDE_KEY, override);
     }
     // Bust cache on override
-    sessionStorage.removeItem(CACHE_KEY);
+    writeStored(CACHE_KEY, null);
   } catch {}
 }
 
@@ -261,8 +313,11 @@ export function setLocationWeatherEnabled(on: boolean) {
       localStorage.setItem(GEO_OPT_KEY, '1');
       localStorage.removeItem(OVERRIDE_KEY); // show the real local weather now, not an old tap
     } else localStorage.removeItem(GEO_OPT_KEY);
-    sessionStorage.removeItem(CACHE_KEY);
-    sessionStorage.removeItem(GEO_FAIL_KEY);
+    // Turning it on (or off) forgets the saved position and any earlier refusal: the next look asks the device afresh, once.
+    writeStored(CACHE_KEY, null);
+    writeStored(GEO_FAIL_KEY, null);
+    writeStored(POS_KEY, null);
+    try { sessionStorage.removeItem(CACHE_KEY); sessionStorage.removeItem(GEO_FAIL_KEY); } catch {} // keys older versions used
   } catch {}
   notifyNookPrefs(); // the window re-reads the weather right away
 }

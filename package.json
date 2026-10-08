@@ -13,7 +13,9 @@
     "prefetch:store": "node scripts/prefetch-store.mjs",
     "check:shelves": "tsx scripts/check-shelves.ts",
     "test": "tsx --test src/services/*.test.ts src/services/*/*.test.ts",
-    "check:nyt": "tsx scripts/check-nyt-lists.ts"
+    "check:nyt": "tsx scripts/check-nyt-lists.ts",
+    "check:service95": "tsx scripts/check-service95.ts",
+    "check:oprah": "tsx scripts/check-oprah.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

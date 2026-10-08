@@ -101,66 +101,26 @@
   "emoji": "🌸",
   "genre": "Service95 Book Club",
   "seeds": [
-   [
-    "One Hundred Years of Solitude",
-    "Gabriel García Márquez",
-    "Service95 Pick"
-   ],
-   [
-    "Shuggie Bain",
-    "Douglas Stuart",
-    "Booker Prize Winner"
-   ],
-   [
-    "Pachinko",
-    "Min Jin Lee",
-    "Service95 Pick"
-   ],
-   [
-    "Just Kids",
-    "Patti Smith",
-    "National Book Award"
-   ],
-   [
-    "Trust",
-    "Hernan Diaz",
-    "Pulitzer Prize Winner"
-   ],
-   [
-    "Crying in H Mart",
-    "Michelle Zauner",
-    "Service95 Pick"
-   ],
-   [
-    "Half of a Yellow Sun",
-    "Chimamanda Ngozi Adichie",
-    "Women's Prize of Prizes"
-   ],
-   [
-    "A Little Life",
-    "Hanya Yanagihara",
-    "Service95 Pick"
-   ],
-   [
-    "On Earth We're Briefly Gorgeous",
-    "Ocean Vuong",
-    "Service95 Pick"
-   ],
-   [
-    "The Vanishing Half",
-    "Brit Bennett",
-    "Service95 Pick"
-   ],
-   [
-    "Open Water",
-    "Caleb Azumah Nelson",
-    "Costa First Novel Award"
-   ],
-   [
-    "Swimming in the Dark",
-    "Tomasz Jedrowski",
-    "Service95 Pick"
-   ]
+   ["Martyr!", "Kaveh Akbar", "Service95 Monthly Read · Sep 2026"],
+   ["Lost Lambs", "Madeline Cash", "Service95 Monthly Read · Aug 2026"],
+   ["Free", "Lea Ypi", "Service95 Monthly Read · Jul 2026"],
+   ["Having Spent Life Seeking", "Kae Tempest", "Service95 Monthly Read · Jun 2026"],
+   ["So Late in the Day", "Claire Keegan", "Service95 Monthly Read · May 2026"],
+   ["Jerusalem", "Jez Butterworth", "Service95 Monthly Read · Apr 2026"],
+   ["Bad Feminist", "Roxane Gay", "Service95 Monthly Read · Mar 2026"],
+   ["The Son of Man", "Jean-Baptiste Del Amo", "Service95 Monthly Read · Feb 2026"],
+   ["Night People", "Mark Ronson", "Service95 Monthly Read · Jan 2026"],
+   ["Brightly Shining", "Ingvild Rishøi", "Service95 Monthly Read · Dec 2025"],
+   ["The Handmaid's Tale", "Margaret Atwood", "Service95 Monthly Read · Nov 2025"],
+   ["Widow Basquiat", "Jennifer Clement", "Service95 Monthly Read · Jun 2025"],
+   ["Still Born", "Guadalupe Nettel", "Service95 Monthly Read · May 2025"],
+   ["Grief Is the Thing with Feathers", "Max Porter", "Service95 Monthly Read · Apr 2025"],
+   ["There There", "Tommy Orange", "Service95 Monthly Read · Mar 2025"],
+   ["The Bee Sting", "Paul Murray", "Service95 Monthly Read · Feb 2025"],
+   ["Drive Your Plow Over the Bones of the Dead", "Olga Tokarczuk", "Service95 Monthly Read · Jan 2025"],
+   ["Lincoln in the Bardo", "George Saunders", "Service95 Monthly Read · Oct 2024"],
+   ["One Hundred Years of Solitude", "Gabriel García Márquez", "Service95 Monthly Read · Oct 2023"],
+   ["Shuggie Bain", "Douglas Stuart", "Service95 Monthly Read · Jun 2023"]
   ]
  },
  {

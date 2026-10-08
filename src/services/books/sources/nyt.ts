@@ -1,4 +1,4 @@
-import { dedupeInflight, getJsonDetailed } from '../http';
+import { dedupeInflight, getJsonDetailed, pool } from '../http';
 import { persistentCache } from '../cache';
 import { cleanIsbn, isbnPair } from '../identity';
 import type { CallOpts } from './types';
@@ -97,21 +97,34 @@ export function classifyNytFailure(r: { status: number; failure?: string; data?:
   return 'upstream_error';
 }
 
-let warned = false;
-const warnOnce = (list: string, f: NytFailure) => {
-  if (warned) return;
-  warned = true;
-  const hint: Record<NytFailure, string> = {
-    not_configured: 'NYT_API_KEY is not set for this deployment (set it for Production in Cloudflare Pages, then redeploy)',
-    unauthorized: 'the NYT rejected the key (enable the Books API for it in the NYT developer portal)',
-    rate_limited: 'the NYT rate limit was hit; it will retry later',
-    no_function: '/api/nyt returned a web page: the Pages Function is not deployed (needs a Git-connected Pages project, not a plain upload)',
-    upstream_error: 'the NYT API had an error',
-    offline: 'no network',
-    empty: 'the NYT list came back empty',
-  };
-  try { console.warn(`[GreatReads] NYT list "${list}" unavailable: ${hint[f]}`); } catch {}
+export const NYT_FAILURE_TEXT: Record<NytFailure, string> = {
+  not_configured: 'NYT_API_KEY is not set for this deployment (set it for Production in Cloudflare Pages, then redeploy)',
+  unauthorized: 'the NYT rejected the key (enable the Books API for it in the NYT developer portal)',
+  rate_limited: 'the NYT rate limit was hit; it will retry later',
+  no_function: '/api/nyt returned a web page: the Pages Function is not deployed (needs a Git-connected Pages project, not a plain upload)',
+  upstream_error: 'the NYT API had an error, or does not have this list name (run npm run check:nyt)',
+  offline: 'no network',
+  empty: 'the NYT list came back empty',
 };
+
+const warned = new Set<string>();
+const warnOnce = (list: string, f: NytFailure) => {
+  if (warned.has(list)) return; // once per list (one list failing must not hide that another one does too)
+  warned.add(list);
+  try { console.warn(`[GreatReads] NYT list "${list}" unavailable: ${NYT_FAILURE_TEXT[f]}`); } catch {}
+};
+
+/** Why each list's last load failed (cleared by a success): Customize Store shows it, since a hidden shelf cannot say. */
+const lastFailure = new Map<string, NytFailure>();
+export const lastNytFailure = (list: string): NytFailure | undefined => lastFailure.get(list);
+
+/**
+ * The NYT allows only a few requests a minute per key, and a first visit asks for several lists at once, so lists go out two at a
+ * time and a "too many requests" answer is waited out and tried again (when nothing is saved to show meanwhile).
+ */
+export const nytTuning = { backoffMs: [8000, 20000, 65000] as number[] };
+const turn = pool(2);
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 const inflight = new Map<string, Promise<NytResult>>();
 
@@ -123,14 +136,24 @@ export async function loadNytList(list: string, opts: CallOpts & { force?: boole
   const hit = opts.force ? undefined : cache.get(list); // force = a manual refresh: ask again, but the saved list stays as the fallback
   if (hit) return { entries: hit, stale: false };
   return dedupeInflight(inflight, list, async () => {
-    const r = await getJsonDetailed(listUrl(list), { timeout: 10000, retries: 1, signal: opts.signal });
+    const ask = () => turn(() => getJsonDetailed(listUrl(list), { timeout: 10000, retries: 1, signal: opts.signal }));
+    let r = await ask();
+    if (!cache.peek(list)) {
+      for (const wait of nytTuning.backoffMs) {
+        if (r.data || opts.signal?.aborted || classifyNytFailure(r) !== 'rate_limited') break;
+        await sleep(wait);
+        r = await ask();
+      }
+    }
     const entries = r.data ? parseNytList(r.data) : [];
     if (entries.length) {
       cache.set(list, entries);
+      lastFailure.delete(list);
       return { entries, stale: false };
     }
     if (opts.signal?.aborted) return { entries: null, stale: false, failure: 'offline' as const };
     const failure: NytFailure = r.data ? 'empty' : classifyNytFailure(r);
+    lastFailure.set(list, failure);
     warnOnce(list, failure);
     const old = cache.peek(list);
     return old ? { entries: old.value, stale: true, failure } : { entries: null, stale: false, failure };

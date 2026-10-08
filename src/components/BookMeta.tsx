@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Book } from '../types';
 import { BOOK_AWARDS } from '../data/defaultBooks';
+import { honorKind, mergeHonors } from '../services/store/honors';
 import { coverKey, getCoverUrl, resolveCover, subscribeCovers, getCoversVersion, getCoverFix, dropCoverFix, reportMissingCover, clearMissingCover } from '../services/books';
 
 export type AwardKind = 'w' | 's' | 'c'; // winner, shortlist, other pick (book club, series...)
-
-const PRIZE_WORDS = /prize|award|winner|booker|pulitzer|costa|nobel|medal|goncourt|carnegie/i;
 
 /** Prize wins get a trophy, shortlists a medal, and anything else (e.g. "Service95 Pick") a plain book badge. */
 export const awardsFor = (b: Book): { type: AwardKind; label: string }[] => {
   const base: { type: AwardKind; label: string }[] = typeof b.id === 'number' ? BOOK_AWARDS[b.id] || [] : [];
   if (!b.awardLabel) return base;
-  const type: AwardKind = /shortlist|longlist/i.test(b.awardLabel) ? 's' : PRIZE_WORDS.test(b.awardLabel) ? 'w' : 'c';
-  return [...base, { type, label: b.awardLabel }];
+  return [...base, { type: honorKind(b.awardLabel), label: b.awardLabel }];
 };
+
+/** For the book info (Honors & Awards): everything awardsFor shows plus every other label shelves have given this book, so a book club pick that also won a prize lists both. Not used on the Store covers. */
+export const honorsListFor = (b: Book): { type: AwardKind; label: string }[] => mergeHonors(awardsFor(b), b);
 
 export const stars = (r: number) => {
   const count = Math.max(0, Math.min(5, Math.round(r) || 0));

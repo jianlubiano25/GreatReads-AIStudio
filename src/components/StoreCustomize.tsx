@@ -58,15 +58,48 @@ export function StoreCustomize({ order, hidden, onReorder, onToggle, onDone, onR
     };
   }, [dragging, order, onReorder]);
 
-  const refresh = async (id: string) => {
+  const alive = useRef(true); // leaving Customize Store stops a Refresh all that is still working through the shelves
+  useEffect(() => () => { alive.current = false; }, []);
+
+  const refresh = async (id: string): Promise<ManualResult> => {
     const source = SHELF_BY_ID[id]?.source;
-    if (!source || busy.has(id)) return;
+    if (!source || busy.has(id)) return 'unsupported';
     setBusy(b => new Set(b).add(id));
     setNotes(n => ({ ...n, [id]: '' }));
     const result = await manualRefresh(source);
-    setBusy(b => { const next = new Set(b); next.delete(id); return next; });
-    setNotes(n => ({ ...n, [id]: MESSAGE[result] }));
-    redraw(x => x + 1);
+    if (alive.current) {
+      setBusy(b => { const next = new Set(b); next.delete(id); return next; });
+      setNotes(n => ({ ...n, [id]: MESSAGE[result] }));
+      redraw(x => x + 1);
+    }
+    return result;
+  };
+
+  // Refresh all: the shelves that are showing, ONE AT A TIME, each through the same rate-limited manualRefresh as its own button
+  // (so a shelf checked in the last few minutes is skipped, and no source gets more than one request at a time from here).
+  const [all, setAll] = useState<{ done: number; total: number } | null>(null);
+  const [allNote, setAllNote] = useState('');
+  const refreshAll = async () => {
+    const ids = order.filter(id => !hidden.includes(id) && SHELF_BY_ID[id]?.source?.refresh);
+    if (!ids.length || all) return;
+    const tally = { changed: 0, current: 0, failed: 0, skipped: 0 };
+    setAllNote('');
+    setAll({ done: 0, total: ids.length });
+    for (const [i, id] of ids.entries()) {
+      if (!alive.current) return;
+      const r = await refresh(id);
+      if (r === 'updated') tally.changed++;
+      else if (r === 'unchanged') tally.current++;
+      else if (r === 'failed') tally.failed++;
+      else tally.skipped++;
+      if (alive.current) setAll({ done: i + 1, total: ids.length });
+    }
+    if (!alive.current) return;
+    setAll(null);
+    const parts = [`${tally.changed} updated`, `${tally.current} already up to date`];
+    if (tally.skipped) parts.push(`${tally.skipped} checked recently`);
+    if (tally.failed) parts.push(`${tally.failed} could not update (saved lists kept)`);
+    setAllNote(`${parts.join(', ')}.${hidden.length ? ' Hidden shelves were not refreshed.' : ''}`);
   };
 
   const key = (e: React.KeyboardEvent, id: string) => {
@@ -89,6 +122,20 @@ export function StoreCustomize({ order, hidden, onReorder, onToggle, onDone, onR
         <button type="button" onClick={onDone} className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#2e5934] text-white hover:bg-[#244729] flex items-center gap-1.5 shadow-sm shrink-0">
           <Check className="w-4 h-4" /> Done
         </button>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={refreshAll}
+          disabled={!!all}
+          className="px-3 py-2 rounded-xl text-xs font-semibold border border-[#e3d7c3] dark:border-[#382f25] bg-[#fbf7ee] dark:bg-[#231d17] text-[#2e5934] dark:text-[#86b880] flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-60"
+          title="Refresh every shelf that is showing, one at a time"
+        >
+          <RefreshCw className={`w-4 h-4 ${all ? 'animate-spin' : ''}`} />
+          {all ? `Refreshing ${Math.min(all.done + 1, all.total)} of ${all.total}…` : 'Refresh all shelves'}
+        </button>
+        {allNote && !all && <span className="text-[11px] text-[#2e5934] dark:text-[#86b880]" role="status">{allNote}</span>}
       </div>
 
       <ul ref={list} className="flex flex-col gap-2 select-none">

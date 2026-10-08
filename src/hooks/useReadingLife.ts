@@ -12,7 +12,7 @@ const LEGACY_KEY = 'readlife.v1';
 const RECOVERY_KEY = 'readlife.v2.recovery';
 const SAVE_DELAY_MS = 350;
 // Things the app can download again if they are ever lost; safe to clear when storage is full
-const CACHE_KEYS = ['readlife.shelves1', 'readlife.curated1', 'readlife.resolved1', 'readlife.meta4', 'readlife.nyt1', 'readlife.coverFix1', 'readlife.coverNone2', 'readlife.preload', 'readlife.loaded', 'readlife.phoneticTried', 'readlife.store1', 'readlife.store2', 'readlife.store3', 'readlife.meta3', 'readlife.covers1', 'readlife.coverMiss1', 'readlife.coverNone1'];
+const CACHE_KEYS = ['readlife.honors1', 'readlife.shelves1', 'readlife.curated1', 'readlife.resolved1', 'readlife.meta4', 'readlife.nyt1', 'readlife.coverFix1', 'readlife.coverNone2', 'readlife.preload', 'readlife.loaded', 'readlife.phoneticTried', 'readlife.store1', 'readlife.store2', 'readlife.store3', 'readlife.meta3', 'readlife.covers1', 'readlife.coverMiss1', 'readlife.coverNone1'];
 
 export function getTodayKey(): string {
   return dateKey(); // "YYYY-MM-DD" in local time

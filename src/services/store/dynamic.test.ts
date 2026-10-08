@@ -273,8 +273,8 @@ test('the registry only names shelves that exist, and every dynamic shelf has a 
     assert.ok(sp.refreshMs >= 24 * 3600_000 && sp.source && sp.minSeeds >= 5, id);
   }
   assert.equal(DYNAMIC_SPECS.new2026.title?.(new Date(2027, 0, 5)), 'New in 2027');
-  // hand-picked on purpose: no reliable public source
-  for (const id of ['service95', 'reeses', 'inklingsclub', 'inklings', 'classics']) assert.equal(DYNAMIC_SPECS[id], undefined, id);
+  // hand-picked on purpose: no reliable public source (Reese's and Service95 now have one: Wikipedia's tables of every pick)
+  for (const id of ['inklingsclub', 'inklings', 'classics']) assert.equal(DYNAMIC_SPECS[id], undefined, id);
 });
 
 /* ------------------------------ extra NYT lists ------------------------------ */
@@ -300,4 +300,49 @@ test('extra NYT lists are official-or-nothing, show 10, and do not duplicate the
   assert.equal(books.length, 10);
   assert.equal(books[0].title, 'Book 0');
   assert.match(books[0].awardLabel || '', /^NYT bestseller/);
+});
+
+/* ------------------------------ International Booker's "Work" column ------------------------------ */
+
+test('stripNativeTitle drops an original-language title in another script and keeps real titles', async () => {
+  const { stripNativeTitle } = await import('./wikiLists');
+  assert.equal(stripNativeTitle('The Vegetarian 채식주의자'), 'The Vegetarian');
+  assert.equal(stripNativeTitle('Taiwan Travelogue 臺灣漫遊錄'), 'Taiwan Travelogue');
+  assert.equal(stripNativeTitle('Heart Lamp: Selected Stories ಎದೆಯ ಹಣತೆ'), 'Heart Lamp: Selected Stories');
+  assert.equal(stripNativeTitle('A Horse Walks into a Bar סוס אחד נכנס לבר\u200e'), 'A Horse Walks into a Bar');
+  assert.equal(stripNativeTitle('Celestial Bodies سيدات القمر'), 'Celestial Bodies');
+  assert.equal(stripNativeTitle("Don't Look Back: A Café Story"), "Don't Look Back: A Café Story");
+  assert.equal(stripNativeTitle('채식주의자'), '채식주의자'); // nothing but native script: left alone
+});
+
+test('International Booker table: the book column is "Work", the year is in each row, the other tables are ignored', async () => {
+  const winners = `{| class="wikitable"
+! Year !! Author !! Home country !! Translator !! Translation published in (country) !! Work !! Language !! Ref.
+|-
+| 2022 || Geetanjali Shree || India || Daisy Rockwell || United States || ''Tomb of Sand'' <br />रेत समाधि || Hindi ||
+|-
+| 2023 || Georgi Gospodinov || Bulgaria || Angela Rodel || UK || ''Time Shelter'' Времеубежище || Bulgarian ||
+|-
+| 2024 || Jenny Erpenbeck || Germany || Michael Hofmann || Germany || ''Kairos'' || German ||
+|-
+| 2025 || Banu Mushtaq || India || Deepa Bhasthi || India || ''Heart Lamp: Selected Stories'' ಎದೆಯ ಹಣತೆ || Kannada ||
+|-
+| 2026 || Yang Shuang-zi || Taiwan || Lin King || UK || ''Taiwan Travelogue'' 臺灣漫遊錄 || Mandarin Chinese ||
+|}
+{| class="wikitable"
+! Award !! Author !! Country !! Translator !! Title !! Publisher
+|-
+| Winner || Han Kang || South Korea || Deborah Smith || The Vegetarian || Portobello Books
+|}`;
+  const rule: ColumnRule = { title: /^(title|novel|book|work|winning (book|work))/i, author: /^(author|writer|winner)/i, when: /^(year|date)/i, result: /^(result|status|outcome)/i, winner: /winner/i, onePerYear: true };
+  const picks = picksFromTables(parseWikiTables(winners), rule)!;
+  assert.deepEqual(picks.map(p => [p.title, p.author, p.when]), [
+    ['Taiwan Travelogue', 'Yang Shuang-zi', '2026'],
+    ['Heart Lamp: Selected Stories', 'Banu Mushtaq', '2025'],
+    ['Kairos', 'Jenny Erpenbeck', '2024'],
+    ['Time Shelter', 'Georgi Gospodinov', '2023'],
+    ['Tomb of Sand', 'Geetanjali Shree', '2022'],
+  ]);
+  // and the shelf's own spec uses this rule
+  assert.ok(DYNAMIC_SPECS.intbooker && DYNAMIC_SPECS.womens);
 });

@@ -49,6 +49,8 @@ function injectServiceWorker(): Plugin {
     },
     closeBundle() {
       try {
+        // The site's own statement of "this is the build I am serving". The running app compares it with the build it was made from.
+        fs.writeFileSync(path.join(outDir, 'version.json'), JSON.stringify({ build: BUILD_ID }));
         const swFile = path.join(outDir, 'sw.js');
         if (!fs.existsSync(swFile)) return;
         const assets: string[] = [];

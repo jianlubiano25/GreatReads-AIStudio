@@ -9,6 +9,8 @@
   Cache-Control: no-cache
 /sw.js
   Cache-Control: no-cache
+/version.json
+  Cache-Control: no-store
 /manifest.json
   Cache-Control: no-cache
 

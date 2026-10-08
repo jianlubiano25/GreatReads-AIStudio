@@ -34,6 +34,11 @@ export interface Resolved {
 }
 
 const cache = persistentCache<Resolved | null>('readlife.resolved1', { ttl: 14 * 24 * 60 * 60 * 1000, max: 250 });
+/**
+ * Books no source could place. Remembered only briefly: "not found" is often a dropped connection or a rate limit, and a miss
+ * that lasted two weeks (as saved results do) left covers blank long after the network was fine again.
+ */
+const misses = persistentCache<true>('readlife.resolvedmiss1', { ttl: 2 * 60 * 60 * 1000, max: 300 });
 const inflight = new Map<string, Promise<Resolved | null>>();
 
 const keyOf = (q: ResolveQuery) => {
@@ -44,7 +49,9 @@ const keyOf = (q: ResolveQuery) => {
 export function resolveBook(q: ResolveQuery, opts: CallOpts = {}): Promise<Resolved | null> {
   const key = keyOf(q);
   const hit = cache.get(key);
-  if (hit !== undefined) return Promise.resolve(hit && { ...hit, book: { ...hit.book, id: pickId(hit.book, q) } });
+  // Only a real result is reused for long. (Older versions also saved "not found" here for 14 days: those are looked up again.)
+  if (hit) return Promise.resolve({ ...hit, book: { ...hit.book, id: pickId(hit.book, q) } });
+  if (misses.get(key)) return Promise.resolve(null);
   return dedupeInflight(inflight, key, async () => {
     const [ol, gb, ap] = await Promise.all([
       findOpenLibrary(q, opts),
@@ -53,7 +60,7 @@ export function resolveBook(q: ResolveQuery, opts: CallOpts = {}): Promise<Resol
     ]);
     const hits = [ol, gb, ap].filter((h): h is NonNullable<typeof h> => !!h);
     if (!hits.length) {
-      if (!opts.signal?.aborted) cache.set(key, null);
+      if (!opts.signal?.aborted) misses.set(key, true);
       return null;
     }
     let book: Book = hits.map(h => h.book).reduce((a, b) => mergeBooks(a, b));
